@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.ruff_cache/
+
+# Blocked-download artifacts. An earlier manual fetch of data.gov.il returned
+# WAF anti-bot challenge pages (HTML) instead of CSV; the pipeline only ever
+# reads the .json files. Kept on disk locally, never committed.
+data/raw/*.csv
+
+# Derived artifacts. Regenerate with:
+#   match.py -> representative.py -> predict.py -> forecast.py
+# The small audit CSVs beside them (parties.csv, locality_demographics.csv,
+# cv_summary.csv, letter_totals_validation.csv) ARE tracked, because they are
+# the human-checkable evidence behind the numbers in FINDINGS.md.
+data/processed/*.parquet
+output/

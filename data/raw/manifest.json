@@ -1,0 +1,28 @@
+{
+  "elections": {
+    "21": {
+      "file": "knesset21.json",
+      "date": "2019-04-09"
+    },
+    "22": {
+      "file": "knesset22.json",
+      "date": "2019-09-17"
+    },
+    "23": {
+      "file": "knesset23.json",
+      "date": "2020-03-02"
+    },
+    "24": {
+      "file": "knesset24.json",
+      "date": "2021-03-23"
+    },
+    "25": {
+      "file": "knesset25.json",
+      "date": "2022-11-01"
+    }
+  },
+  "census": {
+    "rid": "9a9e085f-3bc8-41df-b15f-be0daaf99e30",
+    "file": "census_2022_localities.json"
+  }
+}

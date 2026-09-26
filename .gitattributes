@@ -1,0 +1,9 @@
+# Normalize line endings for text; leave everything else alone.
+* text=auto
+
+# The raw gov.il payloads are single-line multi-MB JSON. Without -diff, git
+# tries to diff them line-by-line on every change, which is unusably slow.
+data/raw/*.json -diff linguist-generated=true
+
+# Binary: never diff, never normalize.
+*.parquet binary
