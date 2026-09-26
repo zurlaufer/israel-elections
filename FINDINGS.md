@@ -15,8 +15,11 @@ Elections 21-25 (Sep 2019 - Nov 2022), box-level results, CBS 2022 census.
 | `src/representative.py` | `box_alignments.parquet` | Leave-one-out validation of representative-box selection |
 | `src/predict.py` | — | Box-level vote-share and turnout prediction for election 25 |
 | `src/forecast.py` | `output/e25_predictions.parquet` | Full-scope election-25 forecast for all boxes + transition/structural-break analysis |
+| `src/cv.py` | `cv_summary.csv` | Leave-one-election-out validation of the forecasting method over the 21->22, 22->23, 23->24 and 24->25 transitions |
+| `src/swing.py` | — | Tests whether a *differential* (stratum) swing beats a *uniform* national swing |
 
 Data pipeline output is reproducible end-to-end: `python src/match.py` -> `src/representative.py` -> `src/predict.py`.
+Validation (no outputs of their own beyond `cv_summary.csv`): `python src/forecast.py`, `python src/cv.py`, `python src/swing.py`.
 
 ## 1. Box identity: `ברזל` serials are NOT stable
 
@@ -168,16 +171,76 @@ Best forecast using only pre-election information:
 - **A national-swing correction does not help.** Giving the forecast the actual 24->25 national swing (an oracle a poll could approximate) leaves matched-box MAE unchanged at 0.0205 → 0.0209, i.e. marginally *worse*. Box-level changes that year were largely idiosyncratic, not a uniform swing.
 - Conclusion: box share *levels* are highly persistent (matched-box MAE 0.021), but year-to-year *changes* are not learnable from the three prior transitions — forecasting an election needs external info (polls), not just box history.
 
+**Caveat, resolved in §8:** the "structural break" framing was based on a single held-out transition. Leave-one-election-out CV shows the method ordering is stable, but that 24->25 is *not* uniquely broken — 23->24 is harder for every method. The swing-signature explanation above still stands, and §9 pushes on it further.
+
 ## 7. Census locality profiles
 
 `src/census.py` builds per-locality profiles by aggregating statistical areas weighted by population (falling back to locality-level rows for small localities): population, religion shares, religiosity scale (1=secular ... 4=Haredi), median age, median wage, academic share, homeownership. Sanity checks hold (Bnei Brak: religiosity 4.0, median age 19; Abu Ghosh: 100% Muslim).
 
+## 8. Leave-one-election-out CV: the §6 conclusions hold, but the sample is thin
+
+§6 rested on a single held-out transition. `src/cv.py` repeats the whole §6 comparison for each of the four possible held-out elections, refitting the ridge model only on elections earlier than the target (so no future information leaks). Metric is unchanged: vote-weighted mean per-family MAE over the 9 mapped families, on **all** boxes with votes in the held-out election.
+
+| Method | 21->22 | 22->23 | 23->24 | 24->25 | avg |
+|---|---|---|---|---|---|
+| box own prev (matched only) | 0.0207 | 0.0232 | 0.0331 | 0.0205 | **0.0244** |
+| own prev, else locality prev | 0.0223 | 0.0256 | 0.0425 | 0.0283 | **0.0297** |
+| locality prev | 0.0402 | 0.0458 | 0.0480 | 0.0392 | 0.0433 |
+| ridge model (70 features) | — | 0.0381 | 0.0660 | 0.0420 | 0.0487 |
+| national average | 0.0933 | 0.0963 | 0.0918 | 0.0945 | 0.0940 |
+| equal shares | 0.1197 | 0.1328 | 0.1154 | 0.1215 | 0.1224 |
+
+The `box own prev (matched only)` row is computed only on boxes that have a prior-election match — 92.8% of them in 21->22, 91.1% in 22->23, 33.9% in 23->24 and 58.7% in 24->25 — so it is **not** comparable to the other rows' `avg`. It is the achievable floor if box identity were perfect, and the gap to `own prev, else locality prev` is the cost of unmatched boxes.
+
+- **The ordering in §6 was not a 24->25 accident.** The simple persistence method beats `locality prev` in 4/4 held-out elections, and `box own prev` beats it in 4/4 on matched boxes. Levels are persistent in every transition, not just the last one.
+- **The ridge model loses in all 3 elections where it can be fit** (0.0381 / 0.0660 / 0.0420 vs 0.0256 / 0.0425 / 0.0283). It is not that e24->e25 was a one-off structural break — *no* pooled-transition model beats simply carrying the last result forward, in any held-out year.
+- 23->24 is the hardest transition for all four informative methods (renumbering year, §2) — 0.0425 for the production method vs 0.0223-0.0283 elsewhere. Only the two constant-share baselines peak in 22->23 instead. So the "structural break" in §6 is better read as **renumbering attrition plus a genuinely large Likud swing (0.083 family MAE)**, not as a unique 24->25 event.
+- Matched vs unmatched is stable across transitions: matched 0.0207-0.0331, unmatched 0.0384-0.0503. The ~2x penalty for unmatched boxes is a persistent property of the data, not a one-year artifact.
+
+Per-family MAE of the production method, by transition:
+
+| Family | 21->22 | 22->23 | 23->24 | 24->25 |
+|---|---|---|---|---|
+| Likud | 0.0252 | 0.0504 | 0.0827 | 0.0415 |
+| Center | 0.0403 | 0.0340 | 0.0663 | 0.0557 |
+| Labor | 0.0169 | 0.0237 | 0.0203 | 0.0229 |
+| Shas | 0.0201 | 0.0129 | 0.0321 | 0.0271 |
+| UTJ | 0.0106 | 0.0102 | 0.0344 | 0.0234 |
+| YB | 0.0324 | 0.0162 | 0.0252 | 0.0203 |
+| Meretz | 0.0231 | 0.0420 | 0.0455 | 0.0176 |
+| Arab | 0.0159 | 0.0143 | 0.0184 | 0.0156 |
+| Religious Right | 0.0162 | 0.0270 | 0.0578 | 0.0307 |
+
+- The two large blocs dominate: Likud is the hardest family in 2/4 transitions and Center in the other 2/4. They carry most of the error because that is where swings are largest, not because their box-level tracking is bad.
+- Arab-list MAE is both the most stable (range 0.0156-0.0184, vs 0.024-0.034 for the other families) and in the lowest tier alongside UTJ and Labor, so the under-representation noted in §5a costs coverage, not accuracy, on the boxes that *are* covered.
+- Religious Right stays among the hardest (0.0578 in 23->24, third only to Likud and Center), consistent with §5's finding that it is the least predictable family for every method — its near-doubling between e23 and e25 is not something a box's own last result can anticipate.
+
+## 9. A differential swing does not beat a uniform national swing
+
+§6 showed an *oracle* national swing does not help. `src/swing.py` asks the stronger question: is the swing **differential by demographic stratum**? Strata are `religiosity (1-4) x locality size (small/medium/large)`, 14 cells. For each held-out transition, stratum mean share-changes are estimated **only from earlier transitions** and used to correct the box's own previous share; strata with < 200 training box-transitions fall back to the uniform mean. Target is the actual change in box share, vote-weighted.
+
+| transition | train pairs | usable strata | vote coverage | uniform | differential | delta |
+|---|---|---|---|---|---|---|
+| 22->23 | 1 | 6/14 | 0.975 | **0.0323** | 0.0329 | +0.0006 |
+| 23->24 | 2 | 6/14 | 0.945 | **0.0408** | 0.0411 | +0.0003 |
+| 24->25 | 3 | 7/14 | 0.975 | **0.0225** | 0.0225 | -0.0000 |
+| **avg** | | | | **0.0319** | 0.0322 | **+0.0003** |
+
+- **Differential swing is marginally *worse* than no correction at all.** Even with 94-98% of votes covered by a usable stratum, stratifying on the most obvious demographic axis buys nothing.
+- The reason is visible in an exact ANOVA decomposition of the pooled share-change variance (stratum means from training pairs only): strata explain **10.5%** going into e22, **3.4%** into e23, **1.6%** into e24. Real box-level movement is overwhelmingly idiosyncratic *within* a demographic stratum, and the stratum signal decays as more history is added.
+- Per-family, the only family that clearly benefits is **Arab lists** (0.0182 -> 0.0155, -0.0027); every other family's delta lies between -0.0001 and +0.0032, i.e. noise or harm. The Arab gain is the one place where a demographic tilt is real — the Arab vote's reaction differs sharply from the national one — but it is small relative to the noise.
+- Combined with §6's oracle-swing null result, the conclusion is firm: **box-level change is not predictable from box history, demography, or a national swing.** Carrying levels forward gets you MAE ~0.030; any model of *change* makes it worse. Forecasting an election requires external information (polls), which is exactly the quantity this dataset lacks.
+
+
 ## Limitations
 
 - **The panel is unrepresentative** (§5a): it holds 23.5% of e25 valid votes and under-counts the Arab vote by 6.62pp and UTJ by 2.58pp. Every panel-only number (§3, §5) describes a more Likud-leaning Israel than the real one. Only §6's all-box figures describe the country.
-- 41% of election-25 boxes do not match to election 24 (59% do); for those the forecast degrades to locality-level information (MAE 0.0383 vs 0.0205). Errors concentrate in the Arab and Haredi towns that are off-panel (§5a).
+- 41% of election-25 boxes do not match to election 24 (59% do); for those the forecast degrades to locality-level information (MAE 0.0383 vs 0.0205). Errors concentrate in the Arab and Haredi towns that are off-panel (§5a). The ~2x matched/unmatched penalty is stable across all four held-out transitions (§8), so it is a data property, not a fixable modeling gap.
 - Selected representative boxes skew slightly more Jewish and come from smaller localities than the average panel box.
 - Election-24 box renumbering (41% match) is the main source of panel attrition and reduces predictive persistence for that transition.
 - Family grouping still collapses party-level granularity (Blue & White, Yesh Atid and National Unity are one `Center` family). The Likud-Labor joint list (מחל) is counted entirely as Likud in all five elections, so `Labor` is understated everywhere by roughly the joint list's minor-party partners.
-- The transition table and structural-break conclusion rest on a single held-out election (24->25) and 33,295 pooled box-transitions. Leave-one-election-out CV is the right next step.
-- The ridge model's 70 features are fit on pooled 22-24 transitions; the 23->24 ballot-composition change (30 -> 39 letters) sits inside the training window, so some features encode composition rather than preference.
+- ~~The transition table and structural-break conclusion rest on a single held-out election.~~ **Resolved in §8**: leave-one-election-out CV over four transitions reproduces the ordering, and shows 24->25 was not a unique structural break (23->24 is harder). What remains unresolved is *why* the ridge model fails everywhere; the transition table shows each pair has a different national swing signature, but four transitions is not enough to learn a mapping from swing signature to box response.
+- The ridge model's 70 features are fit on pooled transitions; the 23->24 ballot-composition change (30 -> 39 letters) sits inside the training window, so some features encode composition rather than preference. In the 21->22 fold the model cannot be fit at all (no prior transitions), so its CV average rests on 3 of 4 folds.
+- §9's strata use only religiosity and locality size. Party-level, age, or income-based strata were not tested; the Arab-list gain suggests a more targeted axis might do better than 14 coarse cells.
+- The `Other` residual is excluded from all headline MAE figures and is not itself forecast. It is genuine in size (0.8-5%) but still partly a mapping artifact, so no claim is made about it.
+
