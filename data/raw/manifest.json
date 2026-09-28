@@ -2,27 +2,33 @@
   "elections": {
     "21": {
       "file": "knesset21.json",
-      "date": "2019-04-09"
+      "date": "2019-04-09",
+      "sha256": "a7d70c0e4e1f3e8cfb03d5d2c87f6f4791f0abeea3017253f3e23eb3fe87b0df"
     },
     "22": {
       "file": "knesset22.json",
-      "date": "2019-09-17"
+      "date": "2019-09-17",
+      "sha256": "bfc71ead3c682c58ece0ada2fde61fa9d2a74ce2e1d72dfb2c56e553a0b96cfd"
     },
     "23": {
       "file": "knesset23.json",
-      "date": "2020-03-02"
+      "date": "2020-03-02",
+      "sha256": "6d60a5b50d92573a897ac80ec0b937ec5afa6ee2892a52afd68cbad23cbf1c82"
     },
     "24": {
       "file": "knesset24.json",
-      "date": "2021-03-23"
+      "date": "2021-03-23",
+      "sha256": "bdcb0201d1d4dae18482cff41276639295a46a844173a1fc51f8cc99af15fe46"
     },
     "25": {
       "file": "knesset25.json",
-      "date": "2022-11-01"
+      "date": "2022-11-01",
+      "sha256": "3401bfe9016106c47ff54137265df60d9dfef22dac186f86981f08232ba3523c"
     }
   },
   "census": {
     "rid": "9a9e085f-3bc8-41df-b15f-be0daaf99e30",
-    "file": "census_2022_localities.json"
+    "file": "census_2022_localities.json",
+    "sha256": "286548cede3cd7cd0c8a36a6afecc99c671b50335506c199bbabe326e5f52f10"
   }
 }
